@@ -71,7 +71,8 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         //抢到了
         if (locked){
             try {
-                return createVoucherOrder(voucherId);
+                IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
+                return proxy.createVoucherOrder(voucherId);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             } finally {
@@ -116,10 +117,13 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 //        return Result.ok(voucherOrder);
 //    }
 
-    private Result createVoucherOrder(Long voucherId){
+    @Transactional
+    public Result createVoucherOrder(Long voucherId){
         //一人一单
         Long userId = UserHolder.getUser().getId();
-        int count = query().eq("user_id", userId).eq("voucher_id", voucherId).count();
+        //异步线程获取用户Id---
+        //Long userId = voucherOrder.getUserId();
+        long count = query().eq("user_id", userId).eq("voucher_id", voucherId).count();
         if (count > 0){
             return Result.fail("用户已经购买过一次了");
         }
@@ -129,18 +133,18 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
                 .setSql("stock = stock - 1")
                 .eq("voucher_id", voucherId).gt("stock", 0)
                 .update();
-        if (!success)return Result.fail("Out of stock");
+        if (!success){
 
-        //创建一个新秒杀订单
+            return Result.fail("Out of stock");
+        }
         VoucherOrder voucherOrder = new VoucherOrder();
-        //用工具类生成一个订单ID
-        long orderId = redisIdWorker.nextId("order");
-        voucherOrder.setId(orderId);
-        voucherOrder.setUserId(userId);
         voucherOrder.setVoucherId(voucherId);
+        voucherOrder.setId(redisIdWorker.nextId("order"));
+        voucherOrder.setUserId(userId);
         //写入数据库
         save(voucherOrder);
         return Result.ok(voucherOrder);
+
     }
 
 //Redis 分布式锁

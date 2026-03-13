@@ -3,6 +3,7 @@ package com.hmdp.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.Voucher;
+import com.hmdp.entity.VoucherOrder;
 
 /**
  * <p>
@@ -15,6 +16,8 @@ import com.hmdp.entity.Voucher;
 public interface IVoucherService extends IService<Voucher> {
 
     Result queryVoucherOfShop(Long shopId);
+
+    void handleVoucherOrder(VoucherOrder voucherOrder);
 
     void addSeckillVoucher(Voucher voucher);
 }
