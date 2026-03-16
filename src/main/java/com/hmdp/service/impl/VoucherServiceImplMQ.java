@@ -26,6 +26,7 @@ import javax.annotation.Resource;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
@@ -87,6 +88,8 @@ public class VoucherServiceImplMQ extends ServiceImpl<VoucherMapper, Voucher> im
     }
 
 
+    public static final String QUEUE_NAME = "stream.orders";
+
 
     //创建一个线程池
     private static final ExecutorService SECKILL_ORDER_EXECUTOR = Executors.newSingleThreadExecutor();
@@ -100,11 +103,33 @@ public class VoucherServiceImplMQ extends ServiceImpl<VoucherMapper, Voucher> im
         public void run(){
             while (true){
                 try {
+                    List<MapRecord<String , Object, Object>> Remains= stringRedisTemplate.opsForStream().read(
+                            Consumer.from("g1", "c1"),
+                            StreamReadOptions.empty().count(1).block(Duration.ofSeconds(2)),
+                            StreamOffset.create(QUEUE_NAME, ReadOffset.from("0"))
+                    );
+                    if (Remains != null && !Remains.isEmpty()){
+                        //3. 解析消息中的订单消息
+                        MapRecord<String, Object, Object> record = Remains.get(0);
+                        //获取数据: {userId, voucherId, id}
+                        Map<Object, Object> values = record.getValue();
+                        VoucherOrder voucherOrder = new VoucherOrder();
+                        voucherOrder.setUserId(Long.valueOf((values.get("userId").toString())));
+                        voucherOrder.setVoucherId((Long.valueOf(values.get("voucherId").toString())));
+                        voucherOrder.setId(Long.valueOf(values.get("id").toString()));
+                        //3. 如果获取成功， 可以下单
+
+                        proxy.handleVoucherOrder(voucherOrder);
+                        //4. ACK确认
+                        stringRedisTemplate.opsForStream().acknowledge(QUEUE_NAME, "g1", record.getId());
+                        continue;
+
+                    }
                     //1. 获取消息队列中的订单信息 XREADGROUP GROUP g1 c1 COUNT 1 BLOCK 2000 STREAMS streams.order >
                     List<MapRecord<String , Object, Object>> list= stringRedisTemplate.opsForStream().read(
                             Consumer.from("g1", "c1"),
                             StreamReadOptions.empty().count(1).block(Duration.ofSeconds(2)),
-                            StreamOffset.create(queueName, ReadOffset.lastConsumed())
+                            StreamOffset.create(QUEUE_NAME, ReadOffset.lastConsumed())
                     );
                     //2. 判断消息获取是否成功
                     if (list == null || list.isEmpty()){
@@ -113,12 +138,20 @@ public class VoucherServiceImplMQ extends ServiceImpl<VoucherMapper, Voucher> im
                     }
                     //3. 解析消息中的订单消息
                     MapRecord<String, Object, Object> record = list.get(0);
+                    //获取数据: {userId, voucherId, id}
+                    Map<Object, Object> values = record.getValue();
+                    VoucherOrder voucherOrder = new VoucherOrder();
+                    voucherOrder.setUserId(Long.valueOf((values.get("userId").toString())));
+                    voucherOrder.setVoucherId((Long.valueOf(values.get("voucherId").toString())));
+                    voucherOrder.setId(Long.valueOf(values.get("id").toString()));
                     //3. 如果获取成功， 可以下单
-                    handleVoucherOrder(voucherOrder);
-                    //4. ACK确认
 
-                    voucherOrderService.save(voucherOrder);
-                } catch (InterruptedException e) {
+                    proxy.handleVoucherOrder(voucherOrder);
+                    //4. ACK确认
+                    stringRedisTemplate.opsForStream().acknowledge(QUEUE_NAME, "g1", record.getId());
+
+
+                } catch (Exception e) {
                     log.error("处理订单异常", e);
                 }
             }
@@ -149,6 +182,18 @@ public class VoucherServiceImplMQ extends ServiceImpl<VoucherMapper, Voucher> im
         //获取代理对象
         proxy = (IVoucherService) AopContext.currentProxy();
         return Result.ok(orderId);
+    }
+
+
+    @Transactional
+    public void handleVoucherOrder(VoucherOrder voucherOrder){
+
+        seckillVoucherService.update()
+                .setSql("stock = stock - 1")
+                .eq("voucher_id", voucherOrder.getVoucherId())
+                .gt("stock", 0)
+                .update();
+        voucherOrderService.save(voucherOrder);
     }
 
 
