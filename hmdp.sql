@@ -18,7 +18,7 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- ----------------------------
--- Table structure for tb_blog
+-- Table structure for tb_blog(探店笔记表)
 -- ----------------------------
 DROP TABLE IF EXISTS `tb_blog`;
 CREATE TABLE `tb_blog`  (
