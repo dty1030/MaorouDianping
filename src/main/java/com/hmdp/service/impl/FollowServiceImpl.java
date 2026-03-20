@@ -1,16 +1,23 @@
 package com.hmdp.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.Result;
+import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.Follow;
 import com.hmdp.mapper.FollowMapper;
 import com.hmdp.service.IFollowService;
+import com.hmdp.service.IUserService;
 import com.hmdp.utils.UserHolder;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * <p>
@@ -25,6 +32,9 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+
+    @Resource
+    private IUserService userService;
 
     @Override
     public Result follow(Long followUserId, Boolean isFollow) {
@@ -66,5 +76,26 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
                 .eq("follow_user_id", followUserId)) > 0;
 
         return Result.ok(isFollow);
+    }
+
+    @Override
+    public Result followCommons(Long id) {
+        //1 . 获取当前用户
+        Long userId = UserHolder.getUser().getId();
+        String key = "follows:" + userId;
+        String key2 = "follows:" + id;
+        //2. 求交集
+        Set<String> intersect = stringRedisTemplate.opsForSet().intersect(key, key2);
+        if (intersect == null || intersect.isEmpty())return Result.ok(Collections.emptyList());
+
+        //3. 解析
+        List<Long> ids= intersect.stream()
+                .map(Long::valueOf)
+                .collect(Collectors.toList());
+        List<UserDTO> userDTOS = userService.listByIds(ids).stream()
+                .map(user -> BeanUtil.toBean(user, UserDTO.class))
+                .collect(Collectors.toList());
+
+        return Result.ok(userDTOS);
     }
 }
