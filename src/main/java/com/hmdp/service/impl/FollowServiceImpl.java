@@ -62,7 +62,7 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
     }
 
     /**
-     * 查询当前登录用户是否关注了用户followUserId
+     * 查询当前登录用户是否关注了用户---followUserId
      * @param id
      * @return
      */
