@@ -3,12 +3,14 @@ package com.hmdp.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.BooleanUtil;
 import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.StringUtils;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.dto.Result;
 import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.Blog;
+import com.hmdp.entity.Follow;
 import com.hmdp.entity.User;
 import com.hmdp.mapper.BlogMapper;
 import com.hmdp.service.IBlogService;
@@ -44,6 +46,9 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
 
     @Resource
     IUserService userService;
+
+    @Resource
+    IFollowService followService;
 
     /**
      * 查询点赞排行榜
@@ -140,6 +145,17 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
             boolean isSuccess = update().setSql("liked = liked - 1").eq("id", id).update();
             if (isSuccess)stringRedisTemplate.opsForZSet().remove(key, userId.toString());
         }
+    }
+
+    @Override
+    public boolean saveBlog(Blog blog) {
+        if (!isSuccess)return Result.fail("保存博客失败");
+        //1. 查询博客发布者的followers
+        List<Follow> follows= followService.list(new QueryWrapper<Follow>()
+                .eq("follow_user_id", blog.getUserId()));
+        List<Follow> follows1 = followService.query()
+                .eq("follow_user_id", blog.getUserId()).list();
+        return false;
     }
 
 
