@@ -153,8 +153,16 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         //1. 查询博客发布者的followers
         List<Follow> follows= followService.list(new QueryWrapper<Follow>()
                 .eq("follow_user_id", blog.getUserId()));
-        List<Follow> follows1 = followService.query()
-                .eq("follow_user_id", blog.getUserId()).list();
+//        List<Follow> follows1 = followService.query()
+//                .eq("follow_user_id", blog.getUserId()).list();
+        for(Follow follow: follows){
+            //得到粉丝ID
+            Long userId = follow.getUserId();
+            //
+            String key = RedisConstants.FEED_KEY + userId;
+            stringRedisTemplate.opsForZSet().add(key, String.valueOf(blog.getId()), System.currentTimeMillis());
+
+        }
         return false;
     }
 
