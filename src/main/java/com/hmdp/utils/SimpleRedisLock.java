@@ -9,6 +9,7 @@ import org.springframework.data.redis.core.script.RedisScript;
 import javax.annotation.Resource;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 
@@ -20,6 +21,10 @@ public class SimpleRedisLock implements ILock{
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
+    private static final String ID_PREFIX = UUID.randomUUID().toString() + "-";
+    private static final String KEY_PREFIX = "lock";
+
+
     private static final DefaultRedisScript<Long> UNLOCK_SCRIPT;
     static {
         UNLOCK_SCRIPT = new DefaultRedisScript<>();
@@ -28,7 +33,6 @@ public class SimpleRedisLock implements ILock{
     }
 
     private String name;
-    private static final String KEY_PREFIX = "lock";
 
     public SimpleRedisLock(String name, StringRedisTemplate stringRedisTemplate){
         this.name = name;
@@ -40,24 +44,27 @@ public class SimpleRedisLock implements ILock{
         long threadId = Thread.currentThread().getId();
         //1. 获取锁 (Set NX)
         Boolean success = stringRedisTemplate.opsForValue()
-                .setIfAbsent(KEY_PREFIX + name, threadId + "", timeoutSec, TimeUnit.SECONDS);
+                .setIfAbsent(KEY_PREFIX + name, ID_PREFIX + threadId, timeoutSec, TimeUnit.SECONDS);
         return Boolean.TRUE.equals(success);
     }
 
+    /*直接Delete版本
     public void unlock(){
         stringRedisTemplate.delete(KEY_PREFIX + name);
     }
 
+     */
 
-//    //lua脚本进行解锁
-//    public void unlock(){
-//        //
-//        stringRedisTemplate.execute(
-//                UNLOCK_SCRIPT,
-//                Collections.singletonList(KEY_PREFIX + name),
-//                ID_PREFIX + Thread.currentThread().getId()
-//        );
-//    }
+
+    //lua脚本进行解锁
+    public void unlock(){
+        //
+        stringRedisTemplate.execute(
+                UNLOCK_SCRIPT,
+                Collections.singletonList(KEY_PREFIX + name),
+                ID_PREFIX + Thread.currentThread().getId()
+        );
+    }
 
 
 }

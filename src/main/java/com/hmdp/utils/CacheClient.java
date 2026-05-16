@@ -127,6 +127,13 @@ public class CacheClient {
         boolean isLock = tryLock(lockKey);
         //获取锁成功
         if (isLock){
+            //进行Double Check---,防止 刚锁过的人重建完了刚释放，下一个抢到锁的人又重建一次——避免重复 DB 查询
+            String json2 = stringRedisTemplate.opsForValue().get(key);
+            RedisData redisData2 = JSONUtil.toBean(json2, RedisData.class);
+            if (redisData2.getExpireTime().isAfter(LocalDateTime.now())){
+                unlock(lockKey);
+                return JSONUtil.toBean((JSONObject) redisData2.getData(), type);
+            }
             //开启独立线程, 实现缓存重建
             CACHE_REBUILD_EXECUTOR.submit(() ->{
                 try {

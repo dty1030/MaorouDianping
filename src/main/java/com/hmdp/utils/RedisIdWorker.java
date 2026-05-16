@@ -16,6 +16,8 @@ public class RedisIdWorker {
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+
+    private static final int COUNT_BITS = 32;
     /**
      * 生成时间戳 和 序列号
      * 最后拼接并返回
@@ -34,7 +36,7 @@ public class RedisIdWorker {
         long count = stringRedisTemplate.opsForValue().increment("icr:" + keyPrefix + ":" + date) ;
 
         //3. 拼接并return
-        return 0L;
+        return timestamp << COUNT_BITS | count;
     }
 
     public static void main(String[] args) {
