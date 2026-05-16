@@ -153,9 +153,40 @@ public class VoucherServiceImplMQ extends ServiceImpl<VoucherMapper, Voucher> im
 
                 } catch (Exception e) {
                     log.error("处理订单异常", e);
+                    han
                 }
             }
 
+        }
+    }
+    private void handlePendingList(){
+        while (true){
+            try {
+                List<MapRecord<String , Object, Object>> list= stringRedisTemplate.opsForStream().read(
+                        Consumer.from("g1", "c1"),
+                        StreamReadOptions.empty().count(1).block(Duration.ofSeconds(2)),
+                        StreamOffset.create(QUEUE_NAME, ReadOffset.lastConsumed())
+                );
+                if (list == null || list.isEmpty()){
+                    break;
+                }
+                //3. 解析消息中的订单消息
+                MapRecord<String, Object, Object> record = list.get(0);
+                //获取数据: {userId, voucherId, id}
+                Map<Object, Object> values = record.getValue();
+                VoucherOrder voucherOrder = new VoucherOrder();
+                voucherOrder.setUserId(Long.valueOf((values.get("userId").toString())));
+                voucherOrder.setVoucherId((Long.valueOf(values.get("voucherId").toString())));
+                voucherOrder.setId(Long.valueOf(values.get("id").toString()));
+            }
+            catch (Exception e){
+                try {
+                    Thread.sleep(50);
+                }
+                catch (InterruptedException ex){
+
+                }
+            }
         }
     }
 
